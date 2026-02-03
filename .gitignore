@@ -1,0 +1,17 @@
+# --- DATOS Y LOGS (Lo más importante) ---
+data/
+logs/
+*.log
+
+# --- ENTORNO VIRTUAL Y PYTHON ---
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# --- IDE Y SISTEMA (Basura) ---
+.idea/
+.vscode/
+.DS_Store
+*.csv
+*.db
