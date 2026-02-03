@@ -270,7 +270,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
                 local_path = self._download_image(data['remote_url'], "status", filename)
             else:
                 # Handle local custom icons
-                # Assumes you will manually place 'alineable.png' in 'data/images/status/'
+                # Assumes you will manually place 'alineable.png' in 'assets'
                 local_path = os.path.join("data", "images", "status", filename)
                 # Optional: Warn if file doesn't exist
                 if not os.path.exists(local_path):
