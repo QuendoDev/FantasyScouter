@@ -10,6 +10,9 @@ from src.scrapers.ff_daily_transfer_scraper import FFDailyTransferScraper
 from src.scrapers.ff_schedule_scraper import FFScheduleScraper
 from src.scrapers.ff_metrics_scraper import FFMetricsScraper
 
+# TODO: revisar todos los logs, comentarios y estilos de codigo en todos los scripts y si los comentarios estan bien
+# (methods, params, returns...)
+
 # Constants (Must match paths in scrapers)
 TEAMS_MAP_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "teams_map.json")
 SCHEDULE_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "schedule.json")
@@ -79,14 +82,6 @@ def run_ingestion():
         scraper = FFDailyTransferScraper()
         scraper.check_for_transfers()
 
-    # --- STEP 1.5: METRICS UPDATE ---
-    # Now that we have the correct players, we update their volatile data.
-    # This runs EVERY time (both init and daily).
-    logger.info("--- STEP 1.5: DAILY METRICS UPDATE (VALUES & STATUS) ---")
-
-    metrics_scraper = FFMetricsScraper()
-    metrics_scraper.update_metrics()
-
     # --- STEP 2: ALWAYS UPDATE SCHEDULE ---
     # Regardless of whether we discovered or updated players, we always want the latest match times/scores.
     logger.info("--- STEP 2: MATCH SCHEDULE UPDATE ---")
@@ -108,6 +103,16 @@ def run_ingestion():
         logger.info(f"✅ Schedule updated with {len(matches)} matches.")
     else:
         logger.warning("⚠️ No matches found or scraping failed.")
+
+    # --- STEP 3: METRICS UPDATE ---
+    # Now that we have the correct players, we update their volatile data.
+    # This runs EVERY time (both init and daily).
+    logger.info("--- STEP 3: DAILY METRICS UPDATE (VALUES & STATUS) ---")
+
+    metrics_scraper = FFMetricsScraper()
+    metrics_scraper.update_metrics()
+
+    # TODO: calcular total de puntos del jugador, rachas, puntos fuera de casa y demas
 
     logger.info("🏁 Ingestion Pipeline Finished Successfully.")
 

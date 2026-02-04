@@ -3,10 +3,13 @@ import json
 import os
 import re
 import requests
+
 from datetime import datetime
 from bs4 import BeautifulSoup
 from typing import Dict, Any, List, Optional
+
 from .ff_discovery_scraper import FFDiscoveryScraper
+from .ff_stats_scraper import FFStatsScraper
 
 
 class FFMetricsScraper(FFDiscoveryScraper):
@@ -22,38 +25,41 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
     Internal Methods
     ----------
-    _is_player_updated_today(team_slug: str, player_slug: str, today_str: str) -> bool
+    _is_player_updated_today(team_slug, player_slug, today_str)
         Checks if the player in the local JSON file already has 'last_updated' == today.
-    _initialize_status_map() -> Dict
-        Loads the Status Map from JSON or creates defaults and downloads icons if missing.
-    _extract_player_status(soup: BeautifulSoup) -> Dict
-        Detects ALL active statuses (Injury AND/OR Suspension) from the player's profile page HTML.
-    _extract_injury_history(soup: BeautifulSoup) -> List[Dict]
+    _initialize_status_map()
+        Loads or creates the Status Map configuration and downloads icons.
+    _extract_player_status(soup)
+        Detects ALL active statuses (Injury AND/OR Suspension).
+    _extract_injury_history(soup)
         Parses injury history filtering by DATE (Season 25/26).
-    _extract_injury_risk(soup: BeautifulSoup) -> Dict
+    _extract_injury_risk(soup)
         Extracts Injury Risk level.
-    _extract_player_form(soup: BeautifulSoup) -> Dict
+    _extract_player_form(soup)
         Extracts Player Form Arrow.
-    _extract_player_hierarchy(soup: BeautifulSoup) -> Dict
+    _extract_player_hierarchy(soup)
         Extracts Hierarchy (1-6 Scale).
-    _fetch_async_market_data(soup_profile: BeautifulSoup, slug: str, ff_id: Optional[int] = None) -> Optional[BeautifulSoup]
+    _fetch_async_market_data(soup_profile, slug, ff_id)
         Locates the hidden AJAX URL in the profile script and fetches the market data fragment.
-    _extract_market_data_with_gap_filling(soup: BeautifulSoup, slug: str)
+    _extract_market_data_with_gap_filling(soup, slug)
         Extracts current market value AND checks history for gaps.
-    _merge_market_history(slug: str, web_history: List[Dict]) -> List
+    _merge_market_history(slug, web_history)
         Merges web history with local history to ensure no data loss.
-    _extract_pmr(soup: BeautifulSoup) -> Dict
-        Extracts the 'Puja Máxima Rentable' (PMR) from the player's profile page.
-    _update_player_in_team_file(team_slug: str, player_slug: str, updates: Dict)
-        Opens the team file, finds the player, updates metrics, and saves back.
-    _load_players_index() -> Dict
-        Loads the players index from the players_map.json file.
+    _extract_pmr(soup)
+        Extracts the 'Puja Máxima Rentable' (PMR) by finding the JS call 'parsePujaIdeal'.
+    _update_player_in_team_file(team_slug, player_slug, update_data)
+        Updates the player's entry in the team's JSON file with new metrics.
+    _save_player_stats_json(player_slug, match_stats)
+        Saves the player's match stats to a dedicated JSON file.
+    _load_players_index()
+        Loads the master players index from disk.
     """
 
     # Paths
     STATUS_MAP_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "status_map.json")
     STATUS_IMG_DIR = os.path.join("data", "images", "status")
     MARKET_HISTORY_DIR = os.path.join("data", "market_history")
+    STATS_DIR = os.path.join("data", "player_stats")
 
     def __init__(self):
         """
@@ -65,6 +71,9 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
         # Initialize Status Map (Config + Images)
         self.status_map = self._initialize_status_map()
+
+        # Initialize the scraper used for getting the stats of the players
+        self.stats_scraper = FFStatsScraper()
 
 
     def update_metrics(self):
@@ -135,7 +144,13 @@ class FFMetricsScraper(FFDiscoveryScraper):
                 # 5. PMR (PUJA MÁXIMA RENTABLE)
                 pmr_data = self._extract_pmr(target_soup)
 
-                # 6. PERSISTENCE (Update Team JSON)
+                # 6. STATS EXTRACTION (Season Summary)
+                stats_summary, match_stats = self.stats_scraper.parse_player_html(soup, slug, team_slug)
+
+                # Save Stats Summary to file
+                self._save_player_stats_json(slug, match_stats)
+
+                # 7. PERSISTENCE (Update Team JSON)
                 self._update_player_in_team_file(team_slug, slug, {
                     "is_available": status_data["is_available"],
                     "active_statuses": status_data["statuses"],
@@ -145,6 +160,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
                     "market_value": market_data['current_value'],
                     "pmr_web": pmr_data,
                     "injury_history": injury_history,
+                    "season_stats": stats_summary,
                     "last_updated": today_str
                 })
                 updated_count += 1
@@ -208,48 +224,56 @@ class FFMetricsScraper(FFDiscoveryScraper):
         default_config = {
             "sancionado_r": {
                 "name": "Sancionado",
+                "common": "sancionado",
                 "keyword": "sancionadoR",
                 "tag": "sancionado",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/sancionadoR_box_min.png"
             },
             "sancionado_a": {
                 "name": "Sancionado",
+                "common": "sancionado",
                 "keyword": "sancionadoA",
                 "tag": "sancionado",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/sancionadoA_box_min.png"
             },
             "sancionado_d": {
                 "name": "Sancionado",
+                "common": "sancionado",
                 "keyword": "sancionadoD",
                 "tag": "sancionado",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/sancionadoD_box_min.png"
             },
             "lesionado": {
                 "name": "Lesionado",
+                "common": "lesionado",
                 "keyword": "lesionado",
                 "tag": "lesionado",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/lesionado_box_min.png"
             },
             "duda": {
                 "name": "Duda",
+                "common": "lesionado",
                 "keyword": "duda",
                 "tag": "lesionado",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/duda_box_min.png"
             },
             "no_disponible": {
                 "name": "No Disponible",
+                "common": "nodisponible",
                 "keyword": "nodisponible",
                 "tag": "nodisponible",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/tiponoticia/icono_big_nodisponible.png"
             },
             "disponible": {
                 "name": "Disponible (?)",
+                "common": "lesionado",
                 "keyword": "disponible_box",
                 "tag": "lesionado",
                 "remote_url": "https://static.futbolfantasy.com/uploads/images/disponible_box_min.png"
             },
             "alineable": {
                 "name": "Alineable",
+                "common": "alineable",
                 "keyword": "alineable",
                 "tag": "alineable",
                 "remote_url": None
@@ -759,3 +783,18 @@ class FFMetricsScraper(FFDiscoveryScraper):
         if os.path.exists(path):
             with open(path, 'r', encoding='utf-8') as f: return json.load(f)
         return {}
+
+
+    def _save_player_stats_json(self, player_slug: str, match_stats: List[Dict]):
+        """
+        Saves the detailed match statistics list to a dedicated JSON file.
+        Path: data/player_stats/{player_slug}_stats.json
+        """
+        file_path = os.path.join(self.STATS_DIR, f"{player_slug}_stats.json")
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(match_stats, f, indent=4, ensure_ascii=False)
+            # Log opcional (debug) para no saturar la consola principal
+            self.logger.debug(f"   > [STATS] 💾 Saved detailed stats to {file_path}")
+        except Exception as e:
+            self.logger.error(f"   > [STATS ERROR] ❌ Could not save stats for {player_slug}: {e}")
