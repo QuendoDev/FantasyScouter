@@ -1,14 +1,14 @@
-# src/main.py
+# src/main_etl.py
 import json
 import os
 from typing import Dict, Any
 
 from src.utils.logger import get_logger
-
-from src.scrapers.ff_discovery_scraper import FFDiscoveryScraper
-from src.scrapers.ff_daily_transfer_scraper import FFDailyTransferScraper
-from src.scrapers.ff_schedule_scraper import FFScheduleScraper
-from src.scrapers.ff_metrics_scraper import FFMetricsScraper
+from src.core.scrapers.ff_discovery_scraper import FFDiscoveryScraper
+from src.core.scrapers.ff_daily_transfer_scraper import FFDailyTransferScraper
+from src.core.scrapers.ff_schedule_scraper import FFScheduleScraper
+from src.core.scrapers.ff_metrics_scraper import FFMetricsScraper
+from src.utils.config_setup import initialize_settings
 
 # TODO: revisar todos los logs, comentarios y estilos de codigo en todos los scripts y si los comentarios estan bien
 # (methods, params, returns...)
@@ -60,6 +60,8 @@ def run_ingestion():
     2. Metrics Update (Market Value, Statuses, Injuries).
     3. Match Schedule Update.
     """
+    initialize_settings()
+
     logger.info("🚀 Starting Ingestion Pipeline...")
 
     # --- STEP 1: AUTO-DETECT MODE (DISCOVERY VS DAILY) ---
@@ -111,8 +113,6 @@ def run_ingestion():
 
     metrics_scraper = FFMetricsScraper()
     metrics_scraper.update_metrics()
-
-    # TODO: calcular total de puntos del jugador, rachas, puntos fuera de casa y demas
 
     logger.info("🏁 Ingestion Pipeline Finished Successfully.")
 

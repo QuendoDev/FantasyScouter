@@ -1,4 +1,4 @@
-#src/scrapers/ff_daily_transfer_scraper.py
+#src/core/scrapers/ff_daily_transfer_scraper.py
 import json
 import os
 import re

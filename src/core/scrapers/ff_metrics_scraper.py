@@ -1,4 +1,4 @@
-# src/scrapers/ff_metrics_scraper.py
+# src/core/scrapers/ff_metrics_scraper.py
 import json
 import os
 import re
@@ -6,10 +6,11 @@ import requests
 
 from datetime import datetime
 from bs4 import BeautifulSoup
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 
 from .ff_discovery_scraper import FFDiscoveryScraper
 from .ff_stats_scraper import FFStatsScraper
+from core.calculators.metrics_calculator import calculate_derived_metrics
 
 
 class FFMetricsScraper(FFDiscoveryScraper):
@@ -29,6 +30,10 @@ class FFMetricsScraper(FFDiscoveryScraper):
         Checks if the player in the local JSON file already has 'last_updated' == today.
     _initialize_status_map()
         Loads or creates the Status Map configuration and downloads icons.
+    _load_schedule_list()
+        Loads the match schedule from disk if available.
+    _load_settings()
+        Loads the settings from disk if available, otherwise returns empty.
     _extract_player_status(soup)
         Detects ALL active statuses (Injury AND/OR Suspension).
     _extract_injury_history(soup)
@@ -57,6 +62,8 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
     # Paths
     STATUS_MAP_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "status_map.json")
+    SCHEDULE_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "schedule.json")
+    SETTINGS_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "settings.json")
     STATUS_IMG_DIR = os.path.join("data", "images", "status")
     MARKET_HISTORY_DIR = os.path.join("data", "market_history")
     STATS_DIR = os.path.join("data", "player_stats")
@@ -74,6 +81,9 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
         # Initialize the scraper used for getting the stats of the players
         self.stats_scraper = FFStatsScraper()
+
+        self.schedule_list = self._load_schedule_list()
+        self.settings = self._load_settings()
 
 
     def update_metrics(self):
@@ -150,6 +160,18 @@ class FFMetricsScraper(FFDiscoveryScraper):
                 # Save Stats Summary to file
                 self._save_player_stats_json(slug, match_stats)
 
+                # 7. METRICS CALCULATION
+                threshold = self.settings.get("regularity_threshold", 5)
+                derived_stats = calculate_derived_metrics(
+                    stats_summary=stats_summary,
+                    player_stats=match_stats,
+                    market_history=market_data['history'],
+                    current_market_value=market_data['current_value'],
+                    team_slug=team_slug,
+                    schedule_list=self.schedule_list,
+                    threshold=threshold
+                )
+
                 # 7. PERSISTENCE (Update Team JSON)
                 self._update_player_in_team_file(team_slug, slug, {
                     "is_available": status_data["is_available"],
@@ -161,6 +183,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
                     "pmr_web": pmr_data,
                     "injury_history": injury_history,
                     "season_stats": stats_summary,
+                    "derived_metrics": derived_stats,
                     "last_updated": today_str
                 })
                 updated_count += 1
@@ -302,6 +325,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
             final_map[key] = {
                 "name": data['name'],
+                "common": data['common'],  # Used for grouping similar statuses
                 "keyword": data['keyword'],  # Used for HTML matching
                 "local_path": local_path,
                 "remote_url": data['remote_url']
@@ -318,6 +342,36 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
         return final_map
 
+
+    def _load_schedule_list(self) -> List[Dict]:
+        """
+        Loads the match schedule from disk if available.
+
+        :return: list of match dictionaries or empty list if not found
+        """
+        if os.path.exists(self.SCHEDULE_FILE_PATH):
+            try:
+                with open(self.SCHEDULE_FILE_PATH, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                self.logger.warning(f"[METRICS] ⚠️ Could not load Schedule: {e}")
+        return []
+
+
+    def _load_settings(self) -> Dict:
+        """
+        Loads the settings from disk if available, otherwise returns empty.
+
+        :return: dict with settings
+        """
+        if os.path.exists(self.SETTINGS_FILE_PATH):
+            try:
+                with open(self.SETTINGS_FILE_PATH, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                self.logger.warning(f"[METRICS] ⚠️ Could not load settings: {e}")
+
+        return {}
 
     # -------------------------------------------------------------------------
     # EXTRACTION METHODS
@@ -668,6 +722,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
     def _merge_market_history(self, slug: str, web_history: List[Dict]) -> List[Dict]:
         """
         Merges web history with local history to ensure no data loss.
+        Sorts the history chronologically (July -> June) before saving.
 
         :param slug: str, Player slug for file naming
         :param web_history: list of dicts from web
@@ -689,6 +744,41 @@ class FFMetricsScraper(FFDiscoveryScraper):
             merged_map[item['date']] = item['value']
 
         merged_list = [{"date": k, "value": v} for k, v in merged_map.items()]
+
+        # Sort chronologically respecting the season (July starts year 0, Jan starts year 1)
+        def parse_season_date(entry):
+            try:
+                day, month = map(int, entry['date'].split('/'))
+                # If month >= 7 (July-Dec), it's the start of season (Year 0)
+                # If month < 7 (Jan-June), it's the end of season (Year 1)
+                year_offset = 0 if month >= 7 else 1
+                return year_offset, month, day
+            except ValueError:
+                return 0, 0, 0
+
+        merged_list.sort(key=parse_season_date)
+
+        # We iterate to calculate the change vs the previous day in the sorted list
+        for i in range(len(merged_list)):
+            current_item = merged_list[i]
+
+            if i == 0:
+                # First day of history: No trend possible
+                current_item['daily_trend'] = 0
+                current_item['perc_trend'] = 0.0
+            else:
+                prev_item = merged_list[i - 1]
+
+                # Absolute Change
+                diff = current_item['value'] - prev_item['value']
+                current_item['daily_trend'] = diff
+
+                # Percentage Change
+                if prev_item['value'] > 0:
+                    perc = (diff / prev_item['value']) * 100
+                    current_item['perc_trend'] = round(perc, 2)
+                else:
+                    current_item['perc_trend'] = 0.0
 
         # Save updated history
         try:
@@ -798,3 +888,5 @@ class FFMetricsScraper(FFDiscoveryScraper):
             self.logger.debug(f"   > [STATS] 💾 Saved detailed stats to {file_path}")
         except Exception as e:
             self.logger.error(f"   > [STATS ERROR] ❌ Could not save stats for {player_slug}: {e}")
+
+

@@ -1,3 +1,4 @@
+# src/core/scrapers/ff_stats_scraper.py
 import json
 import os
 import re
@@ -267,15 +268,16 @@ class FFStatsScraper(FFDiscoveryScraper):
                     continue
 
                 # For fast status checking
-                lesionado = self.status_map.get("lesionado", {}).get("common", "Lesionado")
-                sancionado = self.status_map.get("sancionado_r", {}).get("common", "Sancionado")
-                alineable = self.status_map.get("alineable", {}).get("common", "Alineable")
-                no_disponible = self.status_map.get("no_disponible", {}).get("common", "No disponible")
+                lesionado = self.status_map.get("lesionado", {}).get("common", "lesionado")
+                sancionado = self.status_map.get("sancionado_r", {}).get("common", "sancionado")
+                alineable = self.status_map.get("alineable", {}).get("common", "alineable")
+                no_disponible = self.status_map.get("no_disponible", {}).get("common", "nodisponible")
 
                 # Initialize variables for this match
                 match_id_html = None
                 status = alineable
                 minutes = 0
+                minutes_points = 0
                 dazn_points = 0
                 breakdown = {}
 
@@ -340,6 +342,7 @@ class FFStatsScraper(FFDiscoveryScraper):
                                 # Special Case: Played Minutes
                                 if slug == 'minutos_jugados':
                                     minutes = parsed_stat['value']
+                                    minutes_points = parsed_stat['points']
                                     status = alineable
 
                                 # Special Case: DAZN MVP Points
@@ -362,7 +365,7 @@ class FFStatsScraper(FFDiscoveryScraper):
                     "jornada": jornada,
                     "match_id": match_id_html,
                     "status": status,
-                    "minutes_played": minutes,
+                    "minutes_played": {"value": minutes, "points": minutes_points},
                     "fantasy_points_total": total_points,
                     "dazn_points": dazn_points,
                     "fantasy_breakdown": breakdown
