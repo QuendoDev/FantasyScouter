@@ -268,11 +268,6 @@ def sync_market_history(session: Session):
         logger.warning(f"   > [SYNC MARKET HISTORY] ⚠️ Path {MARKET_HISTORY_PATH} not found. Skipping.")
         return
 
-    if not os.path.exists(os.path.join(CONFIG_PATH, "settings.json")):
-        logger.warning(f"   > [SYNC MARKET HISTORY] ⚠️ settings.json not found in config. "
-                       f"Skipping.")
-        return
-
     settings = load_json(os.path.join(CONFIG_PATH, "settings.json"))
     year = 2025
 
@@ -287,8 +282,9 @@ def sync_market_history(session: Session):
 
     count_new = 0
     count_updated = 0
+    total_files = len(market_files)
 
-    for m_file in market_files:
+    for i, m_file in enumerate(market_files, 1):
         # Infer player slug from filename (e.g., "lamine-yamal_market.json" -> "lamine-yamal")
         file_slug = m_file.replace("_market.json", "")
 
@@ -301,6 +297,10 @@ def sync_market_history(session: Session):
             logger.warning(f"   > [SYNC MARKET HISTORY] ⚠️ No player found for slug '{file_slug}'. "
                            f"Skipping file {m_file}.")
             continue
+
+        # Optimization: Pre-fetch existing market entries for this player to minimize DB queries
+        existing_records = session.query(MarketValue).filter_by(player_id=player_id).all()
+        existing_map = {mv.date: mv for mv in existing_records}
 
         for entry in market_data:
             # Extract and convert date from "01/07" format to real date using the year from settings.json
@@ -323,8 +323,9 @@ def sync_market_history(session: Session):
                 logger.warning(f"   > [SYNC MARKET HISTORY] ⚠️ No date found for an entry in file {m_file}. Skipping.")
                 continue
 
-            # Check if a MarketValue entry already exists for this player and date
-            market_entry = session.query(MarketValue).filter_by(player_id=player_id, date=date).first()
+            # Search in RAM map first to minimize DB queries
+            market_entry = existing_map.get(date)
+
             if not market_entry:
                 market_entry = MarketValue(player_id=player_id, date=date)
                 session.add(market_entry)
@@ -335,6 +336,9 @@ def sync_market_history(session: Session):
             market_entry.value = entry.get('value', 0)
             market_entry.daily_trend = entry.get('daily_trend', 0)
             market_entry.perc_daily_trend = entry.get('perc_trend', 0.0)
+
+        if i % 100 == 0:
+            logger.info(f"   > [PROGRESS] Processed {i}/{total_files} players...")
 
     session.commit()
     logger.info(f"[SYNC MARKET HISTORY] ✅ Market history synced. New entries: {count_new} | "
