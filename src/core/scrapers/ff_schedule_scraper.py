@@ -1,4 +1,4 @@
-#src/scrapers/ff_schedule_scraper.py
+#src/core/scrapers/ff_schedule_scraper.py
 import re
 import requests
 from bs4 import BeautifulSoup
