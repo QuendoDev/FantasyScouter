@@ -4,7 +4,7 @@ import os
 from .logger import get_logger
 
 # Initialize Logger
-logger = get_logger("ConfigSetup")
+logger = get_logger("ConfigSetup", backup_count=4)
 
 SETTINGS_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "settings.json")
 HIERARCHY_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "hierarchy.json")
@@ -115,6 +115,7 @@ def initialize_settings():
     If it exists, it ensures all default keys are present.
     """
     defaults = {
+        "year": 2025, # This entry will change when scraping the schedule, but it's good to have a default value
         "regularity_threshold": 5
     }
 

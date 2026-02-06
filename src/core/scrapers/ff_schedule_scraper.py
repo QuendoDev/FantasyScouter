@@ -1,4 +1,6 @@
 #src/core/scrapers/ff_schedule_scraper.py
+import os
+import json
 import re
 from datetime import datetime
 
@@ -23,7 +25,17 @@ class FFScheduleScraper(BaseScraper):
     ----------
     _extract_id_from_image(img_src)
         Extracts the team ID from the image source URL.
+    _get_year(soup)
+        Extracts the season year from the page title or header.
+    _parse_ff_date_parts(date_text, extracted_year)
+        Parses date strings like 'Vie 06/02 21:00h' and returns a datetime object, determining the year based on the
+        season.
+    _update_season_year(new_year)
+        Updates the season year in the settings file and logs the change.
     """
+
+    # Paths
+    SETTINGS_PATH = os.path.join("data", "config", "futbol_fantasy", "settings.json")
 
     def __init__(self):
         """
@@ -118,14 +130,17 @@ class FFScheduleScraper(BaseScraper):
                 # --- Score ---
                 info_div = match_link.find('div', class_='info')
                 score_div = info_div.find('div', class_='resultado') if info_div else None
-                score = score_div.get_text(strip=True) if score_div else "-"
+                score = score_div.get_text(strip=True) if score_div else None
 
                 # --- Date (Only if match is not finished) ---
-                date = "-"
+                date = None
                 if not is_finished:
                     date_div = info_div.find('div', class_='date') if info_div else None
                     date_text = date_div.get_text(separator=' ', strip=True) if date_div else ""
                     extracted_year = self._get_year(soup) or datetime.now().year
+                    if extracted_year:
+                        self._update_season_year(extracted_year)
+
                     match_date = self._parse_ff_date_parts(date_text, extracted_year)
                     if match_date: date = match_date.isoformat()
 
@@ -145,7 +160,9 @@ class FFScheduleScraper(BaseScraper):
                 matches_found_count += 1
 
                 self.logger.debug(
-                    f"   > [MATCH] {match_data['ff_match_id']} | J{current_jornada:<2} | {home_team_obj.get('slug', 'unk'):<15} vs {away_team_obj.get('slug', 'unk'):<15} | Score: {score}")
+                    f"   > [MATCH] {match_data['ff_match_id']} | J{current_jornada:<2} | "
+                    f"{home_team_obj.get('slug', 'unk'):<15} vs {away_team_obj.get('slug', 
+                                                                                   'unk'):<15} | Score: {score}")
 
         self.logger.info(f"[SCHEDULE] ✅ Finished parsing. Total matches extracted: {matches_found_count}")
         return matches
@@ -209,3 +226,27 @@ class FFScheduleScraper(BaseScraper):
             year += 1
 
         return datetime(year, month, day, hour, minute)
+
+
+    def _update_season_year(self, new_year: int):
+        """
+        Update the season year in the scraper's state and log the change.
+
+        :param new_year: int, the new starting year of the season (e.g., 2023 for 2023-2024)
+        """
+        if not os.path.exists(self.SETTINGS_PATH):
+            self.logger.warning(f"[SCHEDULE] ⚠️ Settings file not found at {self.SETTINGS_PATH}. "
+                                f"Cannot update season year.")
+            return
+
+        try:
+            with open(self.SETTINGS_PATH, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+
+            if settings.get('year') != new_year:
+                settings['year'] = new_year
+                with open(self.SETTINGS_PATH, 'w', encoding='utf-8') as f:
+                    json.dump(settings, f, indent=4)
+                self.logger.info(f"   > [CONFIG] 📅 Season year updated to: {new_year}")
+        except Exception as e:
+            self.logger.warning(f"   > [CONFIG ERROR] Could not save season year: {e}")

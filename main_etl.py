@@ -10,15 +10,12 @@ from src.core.scrapers.ff_schedule_scraper import FFScheduleScraper
 from src.core.scrapers.ff_metrics_scraper import FFMetricsScraper
 from src.utils.config_setup import initialize_settings, initialize_form, initialize_risk, initialize_hierarchy
 
-# TODO: revisar todos los logs, comentarios y estilos de codigo en todos los scripts y si los comentarios estan bien
-# (methods, params, returns...)
-
 # Constants (Must match paths in scrapers)
 TEAMS_MAP_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "teams_map.json")
 SCHEDULE_FILE_PATH = os.path.join("data", "config", "futbol_fantasy", "schedule.json")
 
-# Initialize Logger
-logger = get_logger("MainIngest", backup_count=4)
+# Initialize Logger (Renamed for consistency with Pipeline)
+logger = get_logger("ETL_Process", backup_count=4)
 
 def load_teams_map() -> Dict[int, Any]:
     """
@@ -33,7 +30,7 @@ def load_teams_map() -> Dict[int, Any]:
                 # Convert keys back to integers for Python usage
                 return {int(k): v for k, v in raw_map.items()}
         except Exception as e:
-            logger.error(f"[MAIN ERROR] Failed to load teams map: {e}")
+            logger.error(f"[ETL ERROR] Failed to load teams map: {e}")
     return {}
 
 
@@ -48,25 +45,24 @@ def save_schedule(matches: list):
         os.makedirs(os.path.dirname(SCHEDULE_FILE_PATH), exist_ok=True)
         with open(SCHEDULE_FILE_PATH, 'w', encoding='utf-8') as f:
             json.dump(matches, f, indent=4, ensure_ascii=False)
-        logger.info(f"[MAIN] 💾 Schedule saved to {SCHEDULE_FILE_PATH}")
+        logger.info(f"[ETL] 💾 Schedule saved to {SCHEDULE_FILE_PATH}")
     except Exception as e:
-        logger.error(f"[MAIN ERROR] Could not save schedule: {e}")
+        logger.error(f"[ETL ERROR] Could not save schedule: {e}")
 
 
-def run_ingestion():
+def run_etl_process():
     """
-    Main orchestration logic.
+    Main orchestration logic for Data Collection (Scraping).
     1. Population Management (Discovery or Daily Transfers).
-    2. Metrics Update (Market Value, Statuses, Injuries).
-    3. Match Schedule Update.
+    2. Match Schedule Update.
+    3. Metrics Update (Market Value, Statuses, Injuries).
     """
     initialize_settings()
     initialize_risk()
     initialize_hierarchy()
     initialize_form()
 
-
-    logger.info("🚀 Starting Ingestion Pipeline...")
+    logger.info("🎬 [ETL] Starting Data Collection Pipeline...")
 
     # --- STEP 1: AUTO-DETECT MODE (DISCOVERY VS DAILY) ---
 
@@ -118,8 +114,8 @@ def run_ingestion():
     metrics_scraper = FFMetricsScraper()
     metrics_scraper.update_metrics()
 
-    logger.info("🏁 Ingestion Pipeline Finished Successfully.")
+    logger.info("🏁 [ETL] Data Collection Finished.")
 
 
 if __name__ == "__main__":
-    run_ingestion()
+    run_etl_process()

@@ -275,8 +275,8 @@ class FFStatsScraper(FFDiscoveryScraper):
 
                 # Initialize variables for this match
                 match_id_html = None
-                status = alineable
                 minutes = 0
+                starter = False
                 minutes_points = 0
                 dazn_points = 0
                 breakdown = {}
@@ -290,6 +290,7 @@ class FFStatsScraper(FFDiscoveryScraper):
                     status = no_disponible  # Base state, will refine later
                 else:
                     status = alineable  # Base state for played or bench
+                    starter = True  # Temporary assumption
 
                 # Try to find link in the current row or the detailed sibling row
                 desglose_row = row.find_next_sibling("tr", class_="desglose")
@@ -309,6 +310,17 @@ class FFStatsScraper(FFDiscoveryScraper):
                 # Extract Jornada
                 jornada_cell = row.find("td", class_="jorn-td") or row.find("td", class_="bold")
                 jornada = "0"
+
+                # Extract if the player is starter
+                match_info_td = row.find("td", class_="position-relative")
+                if match_info_td and starter:
+                    img_entra = match_info_td.find("img", attrs={"title": "Entrada"})
+                    if not img_entra:
+                        img_entra = match_info_td.find("img", attrs={"alt": "Entrada"})
+                    if not img_entra:
+                        img_entra = match_info_td.find("img", src=re.compile(r"icono_entra"))
+                    if img_entra:
+                        starter = False
 
                 if jornada_cell:
                     raw_text = jornada_cell.get_text(strip=True)
@@ -365,6 +377,7 @@ class FFStatsScraper(FFDiscoveryScraper):
                     "jornada": jornada,
                     "match_id": match_id_html,
                     "status": status,
+                    "starter": starter,
                     "minutes_played": {"value": minutes, "points": minutes_points},
                     "fantasy_points_total": total_points,
                     "dazn_points": dazn_points,
