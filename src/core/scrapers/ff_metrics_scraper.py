@@ -44,6 +44,8 @@ class FFMetricsScraper(FFDiscoveryScraper):
         Extracts Player Form Arrow.
     _extract_player_hierarchy(soup)
         Extracts Hierarchy (1-6 Scale).
+    _extract_perc_starter(soup)
+        Extracts the percentage of probability of being starter in the next match.
     _fetch_async_market_data(soup_profile, slug, ff_id)
         Locates the hidden AJAX URL in the profile script and fetches the market data fragment.
     _extract_market_data_with_gap_filling(soup, slug)
@@ -140,6 +142,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
                 form_arrow = self._extract_player_form(soup)
                 hierarchy = self._extract_player_hierarchy(soup)
                 injury_history = self._extract_injury_history(soup)
+                perc_starter = self._extract_perc_starter(soup)
 
                 # 3. REQUEST MARKET DATA (AJAX / ASYNC)
                 # We need to fetch the hidden fragment where charts and PMR live
@@ -174,13 +177,15 @@ class FFMetricsScraper(FFDiscoveryScraper):
 
                 # 7. PERSISTENCE (Update Team JSON)
                 self._update_player_in_team_file(team_slug, slug, {
-                    "is_available": status_data["is_available"],
+                    "is_alineable": status_data["is_alineable"],
                     "active_statuses": status_data["statuses"],
                     "injury_risk": injury_risk,
                     "form": form_arrow,
                     "hierarchy": hierarchy,
+                    "perc_starter": perc_starter,
                     "market_value": market_data['current_value'],
                     "pmr_web": pmr_data,
+                    "last_points": match_stats[-1]['fantasy_points_total'] if match_stats else None,
                     "injury_history": injury_history,
                     "season_stats": stats_summary,
                     "derived_metrics": derived_stats,
@@ -389,10 +394,10 @@ class FFMetricsScraper(FFDiscoveryScraper):
         If no status is detected, assigns the default "Alineable" status.
 
         :param soup: BeautifulSoup object
-        :return: dict { "is_available": bool, "statuses": list[dict] }
+        :return: dict { "is_alineable": bool, "statuses": list[dict] }
         """
         result = {
-            "is_available": True,  # Default assumption
+            "is_alineable": True,  # Default assumption
             "statuses": []
         }
 
@@ -474,8 +479,8 @@ class FFMetricsScraper(FFDiscoveryScraper):
             result["statuses"].append(status_obj)
 
             # 4. Update Global Availability
-            # If we have detected any status, the player is not available
-            result["is_available"] = False
+            # If we have detected any status, the player is not alineable
+            result["is_alineable"] = False
             # Log detail based on what we found (description usually holds the key info like 'No inscrito')
             log_desc = description if description else map_entry['name']
             self.logger.info(f"   > [STATUS] ⚠️ Detected: {map_entry['name'].upper()} ({log_desc})")
@@ -609,7 +614,7 @@ class FFMetricsScraper(FFDiscoveryScraper):
         :param soup: BeautifulSoup object
         :return: dict with hierarchy data
         """
-        HIERARCHY_LEVELS = {60: 6, 50: 5, 40: 4, 30: 3, 25: 2, 10: 1}
+        HIERARCHY_LEVELS = {60: 6, 50: 5, 40: 4, 30: 3, 25: 2, 20:1, 10: 0}
         hierarchy_data = {"has_data": False, "role": None, "level": 0}
 
         box_node = soup.find("div", class_=re.compile(r"jerarquia-box"))
@@ -629,6 +634,33 @@ class FFMetricsScraper(FFDiscoveryScraper):
                         pass
                     break
         return hierarchy_data
+
+
+    def _extract_perc_starter(self, soup: BeautifulSoup) -> Optional[int]:
+        """
+        Extracts the percentage of probability of being starter in the next match.
+
+        :param soup: BeautifulSoup object
+        :return: int percentage value (0-100) or None if not found
+        """
+        perc_node = soup.find("div", class_="porcentaje-perfil")
+
+        if not perc_node:
+            return None
+
+        # Prefer the inner span that likely contains the percent, fallback to container text
+        candidate = None
+        for span in perc_node.find_all("span"):
+            txt = span.get_text(strip=True)
+            if "%" in txt:
+                candidate = txt
+                break
+
+        if not candidate:
+            candidate = perc_node.get_text(" ", strip=True)
+
+        m = re.search(r"(\d{1,3})\s*%", candidate)
+        return int(m.group(1)) if m else None
 
 
     # -------------------------------------------------------------------------

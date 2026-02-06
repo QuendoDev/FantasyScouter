@@ -8,7 +8,7 @@ from src.core.scrapers.ff_discovery_scraper import FFDiscoveryScraper
 from src.core.scrapers.ff_daily_transfer_scraper import FFDailyTransferScraper
 from src.core.scrapers.ff_schedule_scraper import FFScheduleScraper
 from src.core.scrapers.ff_metrics_scraper import FFMetricsScraper
-from src.utils.config_setup import initialize_settings
+from src.utils.config_setup import initialize_settings, initialize_form, initialize_risk, initialize_hierarchy
 
 # TODO: revisar todos los logs, comentarios y estilos de codigo en todos los scripts y si los comentarios estan bien
 # (methods, params, returns...)
@@ -61,6 +61,10 @@ def run_ingestion():
     3. Match Schedule Update.
     """
     initialize_settings()
+    initialize_risk()
+    initialize_hierarchy()
+    initialize_form()
+
 
     logger.info("🚀 Starting Ingestion Pipeline...")
 

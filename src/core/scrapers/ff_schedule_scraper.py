@@ -1,8 +1,10 @@
 #src/core/scrapers/ff_schedule_scraper.py
 import re
+from datetime import datetime
+
 import requests
 from bs4 import BeautifulSoup
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .base_scraper import BaseScraper
 
 
@@ -118,11 +120,22 @@ class FFScheduleScraper(BaseScraper):
                 score_div = info_div.find('div', class_='resultado') if info_div else None
                 score = score_div.get_text(strip=True) if score_div else "-"
 
+                # --- Date (Only if match is not finished) ---
+                date = "-"
+                if not is_finished:
+                    date_div = info_div.find('div', class_='date') if info_div else None
+                    date_text = date_div.get_text(separator=' ', strip=True) if date_div else ""
+                    extracted_year = self._get_year(soup) or datetime.now().year
+                    match_date = self._parse_ff_date_parts(date_text, extracted_year)
+                    if match_date: date = match_date.isoformat()
+
+
                 match_data = {
                     "jornada": current_jornada,
                     "home_team": home_team_obj,
                     "away_team": away_team_obj,
                     "score": score,
+                    "date": date,
                     "url": url_match,
                     "is_finished": is_finished,
                     "ff_match_id": url_match.split('/')[-1].split('-')[0] if url_match else None
@@ -149,3 +162,50 @@ class FFScheduleScraper(BaseScraper):
         match = re.search(r'/(\d+)\.(png|webp|jpg|jpeg)', img_src)
         if match: return int(match.group(1))
         return -1
+
+
+    def _get_year(self, soup: BeautifulSoup) -> Optional[int]:
+        """
+        Extract the season years from the page title or header.
+
+        :param soup: BeautifulSoup object of the page
+        :return: int, the starting year of the season (e.g., 2023 for 2023-2024), or None if not found
+        """
+        h1 = soup.select_one('h1.main.title.mt-4')
+        if not h1:
+            self.logger.warning("[SCHEDULE] ⚠️ Could not extract season years from page.")
+            return None
+
+        text = h1.get_text(strip=True)
+        m = re.search(r'(\d{4})\s*[-/]\s*(\d{2}|\d{4})', text)
+        if not m:
+            self.logger.warning("[SCHEDULE] ⚠️ Could not extract season years from page.")
+            return None
+
+        return int(m.group(1))
+
+
+    def _parse_ff_date_parts(self, date_text: str, extracted_year: int) -> Optional[datetime]:
+        """
+        Parse strings like 'Vie 06/02 21:00h' and return a datetime object.
+        The year is determined based on the extracted season year and the month.
+        Hour and minute are optional; if not present, they default to 00:00.
+
+        :param date_text: str, the date string to parse
+        :param extracted_year: int, the starting year of the season (e.g., 2023 for 2023-2024)
+        :return: datetime object representing the match date and time, or None if parsing fails
+        """
+        m = re.search(r'(\d{1,2})/(\d{1,2})(?:\s+(\d{1,2}):(\d{2})h?)?', date_text)
+        if not m:
+            return None
+
+        day = int(m.group(1))
+        month = int(m.group(2))
+        hour = int(m.group(3)) if m.group(3) else 0
+        minute = int(m.group(4)) if m.group(4) else 0
+        year = extracted_year
+
+        if month < 7:  # If month is Jan-Jun, it's likely the next year in a season that starts in the previous year
+            year += 1
+
+        return datetime(year, month, day, hour, minute)
