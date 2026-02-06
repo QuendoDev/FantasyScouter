@@ -1,4 +1,4 @@
-#src/scrapers/ff_discovery_scraper.py
+#src/core/scrapers/ff_discovery_scraper.py
 import json
 import os
 import re
