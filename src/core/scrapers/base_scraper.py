@@ -1,7 +1,7 @@
-# src/scrapers/base_scraper.py
+# src/core/scrapers/base_scraper.py
 import os
 import requests
-from ..utils.logger import get_logger
+from utils.logger import get_logger
 
 
 class BaseScraper:
