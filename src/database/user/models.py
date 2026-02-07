@@ -16,6 +16,7 @@ class UserLeague(UserBase):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)  # e.g., "La Liga de los Primos"
+    # This is the date when the league was created on the app, not on the fantasy app
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
 
     # Configuration:
@@ -70,16 +71,27 @@ class Manager(UserBase):
     # Economy
     budget = Column(Integer, default=0) # Cash available
     team_value_snapshot = Column(Integer, default=0)    # Cached value for fast sorting
-
     solvent_at_deadline = Column(Boolean, default=True)
 
+    # Scoreboard
+    total_points = Column(Integer, default=0)
+    weekly_points = Column(Integer, default=0)
+
+    # Tactic (current)
     formation = Column(String, default='4-4-2')
-    coach_slug = Column(String, nullable=True)  # Optional coach selection (e.g., 'xavi')
+    coach_slug = Column(String, default=None, nullable=True)  # Optional coach selection (e.g., 'xavi')
 
     # Relationships
     roster = relationship("RosterItem", back_populates="manager", cascade="all, delete-orphan")
+
+    # Transactions
     purchases = relationship("Operation", foreign_keys="[Operation.buyer_id]", back_populates="buyer")
     sales = relationship("Operation", foreign_keys="[Operation.seller_id]", back_populates="seller")
+
+    # History
+    gameweek_stats = relationship("ManagerGameweekStat",
+                                  back_populates="manager",
+                                  cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Manager({self.name} | Budget: {self.budget})>"
@@ -149,9 +161,53 @@ class Operation(UserBase):
     player_slug = Column(String, nullable=True)
 
     op_type = Column(String)  # BUY, SELL, BONUS, REWARD, CLAUSE_INCREASE, LOCK, LOAN
-    description = Column(String)
+    description = Column(String, nullable=True) # Optional free-text description for more details
     amount = Column(Float)  # Negative for spending, Positive for income
     date = Column(DateTime, default=datetime.now(timezone.utc))
 
     def __repr__(self):
         return f"<Op({self.op_type}: {self.amount})>"
+
+
+class ManagerGameweekStat(UserBase):
+    """
+    Saves a snapshot of a manager's performance and tactics for a specific gameweek.
+    """
+    __tablename__ = 'manager_gameweek_stats'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    manager_id = Column(Integer, ForeignKey('managers.id'), nullable=False)
+    manager = relationship("Manager", back_populates="gameweek_stats")
+
+    # Temporal identifier for the snapshot
+    gameweek = Column(Integer, nullable=False) # The gameweek number
+
+    # Important stats for that gameweek
+    points = Column(Float, default=0.0) # Points of that week
+    bench_points = Column(Float, default=0.0) # Points that the manager would have gotten with the bench players
+
+    total_points_snapshot = Column(Float) # Total points up to that week (including that week)
+    rank = Column(Integer)  # Position in the league at the end of that gameweek
+
+    # Economic snapshot (for potential value-based leaderboards and analysis)
+    team_value_snapshot = Column(Integer)
+    budget_snapshot = Column(Integer)
+
+    # Tactic snapshot (for potential tactic-based leaderboards and analysis)
+    # Saved with the following format:
+    # {
+    #   "formation": "4-4-2",
+    #   "coach_slug": "flick",
+    #   "lineup": ['player-slug-1', 'player-slug-2', ..., 'player-slug-11'],
+    #   "bench": ['gk-benched-slug', 'def-beched-slug', 'mid-benched-slug', 'att-benched-slug'],
+    #   "captain": 'player-slug-captain'
+    # }
+    # Those slugs can be used to retrieve the player data from the static DB and calculate points, or to analyze popular
+    # tactics among managers.
+    lineup_snapshot = Column(JSON, default={})
+
+    date = Column(DateTime, default=datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<GWStat(J{self.gameweek} | Mgr:{self.manager_id} | Pts:{self.points})>"

@@ -116,7 +116,24 @@ def initialize_settings():
     """
     defaults = {
         "year": 2025, # This entry will change when scraping the schedule, but it's good to have a default value
-        "regularity_threshold": 5
+        "regularity_threshold": 5,
+        "leagues_config": {
+            "initial_budget": 100_000_000,
+            "point_reward": 100_000,
+            "clause_buying_enabled": True,
+            "premium_enabled": False,
+            "description": "",
+            "more_lineups": False,
+            "captain_enabled": False,
+            "bench_enabled": False,
+            "trainer_enabled": False,
+            "loans_enabled": False,
+            "ideal_11_enabled": False,
+            "shield_duration": 1,
+            "purchase_shield_duration": 14,
+            "max_negative_balance_percentage": 20,
+            "clause_lockout_hours": 24
+        }
     }
 
     if not os.path.exists(SETTINGS_FILE_PATH):

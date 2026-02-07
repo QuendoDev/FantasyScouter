@@ -87,6 +87,8 @@ class Player(Base):
     role = Column(String)   # e.g., "Mediapunta derecho"
     face_path = Column(String)
 
+    is_active = Column(Boolean, default=True)   # If the player is currently active in the league (not retired)
+
     # Status (Volatile)
     is_alineable = Column(Boolean)
     active_statuses_json = Column(JSON)  # List of active statuses (e.g., ["lesionado", "sancionado"]) if not alineable

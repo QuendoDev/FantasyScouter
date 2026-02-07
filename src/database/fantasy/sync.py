@@ -1,14 +1,13 @@
 # src/database/fantasy/sync.py
-import json
 import os
 from datetime import datetime
-from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
 from src.database.fantasy.connection import SessionLocal
 from src.database.fantasy.models import Team, Match, Player, MarketValue, PlayerMatchStat
 from src.utils.logger import get_logger
+from src.utils.file_utils import load_json
 
 # Initialize Logger
 logger = get_logger("SyncDB", backup_count=4)
@@ -20,23 +19,6 @@ MARKET_HISTORY_PATH = os.path.join("data", "market_history")
 PLAYER_MATCHES_STATS_PATH = os.path.join("data", "player_stats")
 
 
-def load_json(filepath: str) -> Optional[Any]:
-    """
-    Utility function to load JSON data from a file safely.
-
-    :param filepath: str, Path to the JSON file
-    :return: Parsed JSON data or None if file doesn't exist
-    """
-    if not os.path.exists(filepath):
-        return None
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"   > [JSON ERROR] Could not load {filepath}: {e}")
-        return None
-
-
 def sync_teams(session: Session):
     """
     Syncs teams from 'teams_map.json' to the 'teams' table.
@@ -45,7 +27,7 @@ def sync_teams(session: Session):
     :param session: SQLAlchemy Session object for DB operations
     """
     path = os.path.join(CONFIG_PATH, "teams_map.json")
-    data = load_json(path)
+    data = load_json(path, logger)
 
     if not data:
         logger.warning("   > [SYNC TEAMS] ⚠️ teams_map.json not found. Skipping.")
@@ -86,7 +68,7 @@ def sync_schedule(session: Session):
     :param session: SQLAlchemy Session object for DB operations
     """
     path = os.path.join(CONFIG_PATH, "schedule.json")
-    data = load_json(path)
+    data = load_json(path, logger)
 
     if not data:
         logger.warning("   > [SYNC SCHEDULE] ⚠️ schedule.json not found. Skipping.")
@@ -148,6 +130,8 @@ def sync_players(session: Session):
     """
     Reads all player JSON files from 'data/players/' and updates the 'players' table.
     Performs a massive update of metrics, statuses, and biographical info.
+
+    :param session: SQLAlchemy Session object for DB operations
     """
     logger.info("[SYNC PLAYERS] 🔄 Starting players synchronization (this might take a moment)...")
 
@@ -163,12 +147,13 @@ def sync_players(session: Session):
 
     count_new = 0
     count_updated = 0
+    processed_slugs = set()
 
     for t_file in team_files:
         # Infer team slug from filename (e.g., "alaves.json" -> "alaves")
         file_slug = t_file.replace(".json", "")
 
-        p_list = load_json(os.path.join(PLAYERS_PATH, t_file))
+        p_list = load_json(os.path.join(PLAYERS_PATH, t_file), logger)
         if not p_list:
             continue
 
@@ -176,6 +161,12 @@ def sync_players(session: Session):
             extra_data = p_data.copy()
             ff_id = extra_data.pop('ff_id', None)
             p_slug = extra_data.pop('id_slug', None)
+
+            if not p_slug:
+                logger.warning(f"   > [SYNC PLAYERS] ⚠️ Player with ff_id '{ff_id}' has no slug. Skipping.")
+                continue
+
+            processed_slugs.add(p_slug)
 
             if ff_id == -1:
                 ff_id = None
@@ -196,6 +187,7 @@ def sync_players(session: Session):
             else:
                 count_updated += 1
 
+            player.is_active = True
 
             # --- 1. RELATIONSHIPS ---
             player.team_id = teams_map_slug.get(file_slug)
@@ -251,8 +243,24 @@ def sync_players(session: Session):
             # Extra Info Blob (Biographical data that doesn't need filtering)
             player.extra_info_json = extra_data
 
+    if processed_slugs:
+        players_to_deactivate = session.query(Player).filter(
+            Player.is_active == True,
+            Player.slug.notin_(processed_slugs)
+        ).all()
+
+        count_deactivated = 0
+        for p in players_to_deactivate:
+            p.is_active = False
+            p.team_id = None  # Lo sacamos del equipo
+            count_deactivated += 1
+            logger.info(f"   > [DEPARTURE] 📉 Player left LaLiga: {p.name} ({p.slug})")
+    else:
+        count_deactivated = 0
+
     session.commit()
-    logger.info(f"[SYNC PLAYERS] ✅ Players synced. New: {count_new} | Updated: {count_updated}")
+    logger.info(f"[SYNC PLAYERS] ✅ Players synced. New: {count_new} | Updated: {count_updated} | "
+                f"Left: {count_deactivated}")
 
 
 def sync_market_history(session: Session):
@@ -268,7 +276,7 @@ def sync_market_history(session: Session):
         logger.warning(f"   > [SYNC MARKET HISTORY] ⚠️ Path {MARKET_HISTORY_PATH} not found. Skipping.")
         return
 
-    settings = load_json(os.path.join(CONFIG_PATH, "settings.json"))
+    settings = load_json(os.path.join(CONFIG_PATH, "settings.json"), logger)
     year = 2025
 
     if settings:
@@ -288,7 +296,7 @@ def sync_market_history(session: Session):
         # Infer player slug from filename (e.g., "lamine-yamal_market.json" -> "lamine-yamal")
         file_slug = m_file.replace("_market.json", "")
 
-        market_data = load_json(os.path.join(MARKET_HISTORY_PATH, m_file))
+        market_data = load_json(os.path.join(MARKET_HISTORY_PATH, m_file), logger)
         if not market_data:
             continue
 
@@ -372,7 +380,7 @@ def sync_match_stats(session: Session):
         # Infer player slug from filename (e.g., "lamine-yamal_stats.json" -> "lamine-yamal")
         file_slug = p_file.replace("_stats.json", "")
 
-        match_stats_data = load_json(os.path.join(PLAYER_MATCHES_STATS_PATH, p_file))
+        match_stats_data = load_json(os.path.join(PLAYER_MATCHES_STATS_PATH, p_file), logger)
         if not match_stats_data:
             continue
 
