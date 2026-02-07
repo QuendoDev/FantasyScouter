@@ -19,12 +19,12 @@ class FFMetricsScraper(FFDiscoveryScraper):
     It ensures data continuity by filling gaps in market history.
     It also manages the Status Icons map and local assets.
 
-    Methods
+    Methods:
     ----------
     update_metrics()
         Main execution method. Iterates over all known players to update their daily metrics.
 
-    Internal Methods
+    Internal Methods:
     ----------
     _is_player_updated_today(team_slug, player_slug, today_str)
         Checks if the player in the local JSON file already has 'last_updated' == today.

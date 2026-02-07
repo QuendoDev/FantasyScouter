@@ -17,12 +17,12 @@ class FFDailyTransferScraper(FFDiscoveryScraper):
     2. Transfers (Moving between teams in the league).
     3. Departures (Leaving the league or team).
 
-    Methods
+    Methods:
     ----------
     check_for_transfers()
         Main execution method to synchronize the market and detect transfers.
 
-    Internal Methods
+    Internal Methods:
     ----------
     _log_transfer_event(player_data, current_team_slug, current_team_name)
         Analyzes the player origin to log the correct event type (Loan, Transfer, or New Signing).

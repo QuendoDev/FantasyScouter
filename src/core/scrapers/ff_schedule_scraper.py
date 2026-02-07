@@ -14,14 +14,14 @@ class FFScheduleScraper(BaseScraper):
     """
     Scraper class to extract the match schedule from FútbolFantasy HTML content.
 
-    Methods
+    Methods:
     ----------
     scrape(team_map)
         Fetches the live schedule from the web and parses it.
     parse(html_content, team_map)
         Parses the HTML content and returns a list of match objects using the provided team_map.
 
-    Internal Methods
+    Internal Methods:
     ----------
     _extract_id_from_image(img_src)
         Extracts the team ID from the image source URL.

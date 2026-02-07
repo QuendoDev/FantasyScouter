@@ -14,13 +14,13 @@ class FFStatsScraper(FFDiscoveryScraper):
     Scraper specialized in extracting detailed match statistics for players.
     It fetches match-by-match breakdowns to allow local calculation of averages and trends.
 
-    Methods
-    -------
+    Methods:
+    ----------
     parse_player_html(soup, player_slug, team_slug)
         Main method to parse a player's HTML page and extract summary and match stats.
 
-    Internal Methods
-    ----------------
+    Internal Methods:
+    ----------
     _initialize_fantasy_map()
         Loads or creates the Fantasy Metrics Map from JSON.
     _extract_summary_stats(soup)
