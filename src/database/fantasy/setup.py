@@ -1,9 +1,9 @@
-# src/database/db_setup.py
+# src/database/fantasy/setup.py
 import os
 from src.utils.logger import get_logger
 
-from src.database.models import Base, Team, Match, Player, MarketValue, PlayerMatchStat
-from src.database.connection import engine, DB_FOLDER, DB_PATH
+from src.database.fantasy.models import Base
+from src.database.fantasy.connection import engine, DB_FOLDER, DB_PATH
 
 # Initialize Logger
 logger = get_logger("DB_Setup", backup_count=4)

@@ -1,4 +1,4 @@
-# src/database/models.py
+# src/database/fantasy/models.py
 from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, JSON, Text
 from sqlalchemy.orm import relationship, declarative_base
 

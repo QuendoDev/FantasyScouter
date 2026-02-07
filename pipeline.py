@@ -3,10 +3,10 @@ import sys
 import time
 from src.utils.logger import get_logger
 
-from src.database.db_setup import init_db
+from database.fantasy.setup import init_db
 from main_etl import run_etl_process
-from src.database.sync_db import run_sync
-from src.database.check_db import check_database_health
+from database.fantasy.sync import run_sync
+from src.database.auditor import check_database_health
 
 # Initialize Logger for the Orchestrator
 logger = get_logger("Pipeline", backup_count=4)

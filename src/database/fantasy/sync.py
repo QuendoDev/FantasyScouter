@@ -1,4 +1,4 @@
-# src/database/sync_db.py
+# src/database/fantasy/sync.py
 import json
 import os
 from datetime import datetime
@@ -6,8 +6,8 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from src.database.connection import SessionLocal
-from src.database.models import Team, Match, Player, MarketValue, PlayerMatchStat
+from src.database.fantasy.connection import SessionLocal
+from src.database.fantasy.models import Team, Match, Player, MarketValue, PlayerMatchStat
 from src.utils.logger import get_logger
 
 # Initialize Logger

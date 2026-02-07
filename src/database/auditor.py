@@ -1,6 +1,6 @@
-# src/database/check_db.py
-from src.database.connection import SessionLocal
-from src.database.models import Player, Team, MarketValue, PlayerMatchStat
+# src/database/auditor.py
+from database.fantasy.connection import SessionLocal
+from database.fantasy.models import Player, Team, MarketValue, PlayerMatchStat
 from src.utils.logger import get_logger
 
 # Initialize Logger

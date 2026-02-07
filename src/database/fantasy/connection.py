@@ -1,4 +1,4 @@
-# src/database/connection.py
+# src/database/fantasy/connection.py
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
