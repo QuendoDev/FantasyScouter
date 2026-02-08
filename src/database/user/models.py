@@ -120,7 +120,7 @@ class RosterItem(UserBase):
     purchase_price = Column(Integer, default=0) # How much was paid
     clause = Column(Integer, default=0) # The calculated clause
     accumulated_points = Column(Integer, default=0)  # Total points accumulated while having this player
-    is_amortized = Column(Boolean, default=False)   # Calculate (value_when_signed + points*reward) >= purchase_price
+    is_amortized = Column(Boolean, default=False)
 
     # Tactic status (starter, bench, reserve)
     lineup_status = Column(String, default='reserve')

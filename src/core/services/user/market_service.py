@@ -103,7 +103,7 @@ class MarketService(BaseService):
                 clause=bid_amount,
                 value_when_signed=real_player.market_value,
                 accumulated_points=0,
-                is_amortized=(not (real_player.market_value == bid_amount)),
+                is_amortized=True if real_player.market_value == bid_amount else False,
                 lineup_status="reserve",
                 signed_at=transaction_date,
                 locked_until=locked_until
@@ -178,6 +178,7 @@ class MarketService(BaseService):
 
 
     def increase_clause(self,
+                        fantasy_db: Session,
                         manager_id: int,
                         player_slug: str,
                         amount_paid: int,
@@ -187,6 +188,7 @@ class MarketService(BaseService):
         Rule: You pay X, clause increases by 2X.
         Constraint: Strict solvency required (cannot use debt for this).
 
+        :param fantasy_db: Session for the static fantasy database (to check player value if needed).
         :param manager_id: The ID of the manager.
         :param player_slug: The slug of the player to upgrade.
         :param amount_paid: The amount of cash the manager spends (X).
@@ -207,6 +209,12 @@ class MarketService(BaseService):
             self.logger.warning(
                 f"   > [MARKET ERROR] Cannot increase clause: Player '{player_slug}' not found in {manager.name}'s "
                 f"squad.")
+            return None
+
+        # Real player
+        real_player = fantasy_db.query(RealPlayer).filter_by(slug=player_slug).first()
+        if not real_player:
+            self.logger.error(f"   > [MARKET ERROR] Player '{player_slug}' does not exist in Fantasy DB.")
             return None
 
         # 3. Strict Budget Check
@@ -230,9 +238,12 @@ class MarketService(BaseService):
             # Check if the player keeps being amortized after the clause increase
             if item.is_amortized:
                 clause_investment = (old_clause - item.purchase_price) / 2
-                total_investment = (item.purchase_price - item.value_when_signed) + clause_investment + amount_paid
+                extra_paid = item.purchase_price - item.value_when_signed
+                increased_price = real_player.market_value - item.value_when_signed
                 points_earned = item.accumulated_points * manager.league.config_json.get("point_reward", 10000)
-                if total_investment > points_earned:
+                money_invested = clause_investment + extra_paid + amount_paid
+                money_earned = increased_price + points_earned
+                if money_invested > money_earned:
                     item.is_amortized = False
 
             # 5. Audit Log
