@@ -160,7 +160,7 @@ class Operation(UserBase):
     # receives a bonus or pays a clause increase, there is no player involved.
     player_slug = Column(String, nullable=True)
 
-    op_type = Column(String)  # BUY, SELL, BONUS, REWARD, CLAUSE_INCREASE, LOCK, LOAN
+    op_type = Column(String)  # BUY, SELL, TRANSFER, BONUS, REWARD, CLAUSE_INCREASE, LOCK, LOAN
     description = Column(String, nullable=True) # Optional free-text description for more details
     amount = Column(Float)  # Negative for spending, Positive for income
     date = Column(DateTime, default=datetime.now(timezone.utc))
@@ -204,7 +204,8 @@ class ManagerGameweekStat(UserBase):
     #   "captain": 'player-slug-captain'
     # }
     # Those slugs can be used to retrieve the player data from the static DB and calculate points, or to analyze popular
-    # tactics among managers.
+    # tactics among managers. The slugs can be null if the manager didn't set a lineup for that week, for example if
+    # they were inactive.
     lineup_snapshot = Column(JSON, default={})
 
     date = Column(DateTime, default=datetime.now(timezone.utc))

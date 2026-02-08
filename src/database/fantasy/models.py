@@ -101,7 +101,7 @@ class Player(Base):
 
     # Main Metrics (Extracted from derived_metrics for fast sorting/filtering)
     # Storing these as columns is much faster than parsing JSON for sorting.
-    total_points = Column(Float, default=0.0)
+    total_points = Column(Integer, default=0)
     avg_points_net = Column(Float, default=0.0) # Average points when playing
     avg_points_home = Column(Float, default=0.0)
     avg_points_away = Column(Float, default=0.0)

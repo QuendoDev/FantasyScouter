@@ -132,7 +132,8 @@ def initialize_settings():
             "shield_duration": 1,
             "purchase_shield_duration": 14,
             "max_negative_balance_percentage": 20,
-            "clause_lockout_hours": 24
+            "clause_lockout_hours": 24,
+            "max_locks_per_player_per_journey": 2
         }
     }
 

@@ -18,6 +18,26 @@ class LeagueService(BaseService):
     ----------
     create_league(name, config)
         Create a new league with the given name and configuration.
+    add_manager(league_id, manager_name, is_me, initial_budget)
+        Add a manager to a league.
+    get_my_manager(league_id)
+        Get the manager that represents the user (is_me=True) in a given league.
+    get_league_details(league_id)
+        Get the details of a league by its ID.
+    get_points_leaderboard(league_id)
+        Get the leaderboard of a league based on the managers' total points.
+    get_value_leaderboard(league_id)
+        Get the leaderboard of a league based on the managers' team values.
+    get_week_leaderboard(league_id)
+        Get the leaderboard of a league based on the points earned by managers in the current week.
+    get_transfers_leaderboard(league_id, op)
+        Get the leaderboard of a league based on the number of transfers made by each manager.
+    get_squad_size_leaderboard(league_id)
+        Get the leaderboard of a league based on the number of players in each manager's squad.
+    get_league_history(league_id)
+        Retrieves the full history of gameweeks for a league.
+    get_detailed_operations(league_id, op_type)
+        Retrieves raw operations for a league, optionally filtered by operation type.
     """
     CONFIG_DIR = os.path.join("data", "config", "futbol_fantasy")
 
@@ -197,12 +217,24 @@ class LeagueService(BaseService):
                                 f"leaderboard.")
             return None
 
+        buy_types = ["BUY", "TRANSFER", "LOAN"]
+        sell_types = ["SELL", "TRANSFER", "LOAN"]
+
+        # It is important to note that there are some operations that are not strictly "BUY" or "SELL" but still involve
+        # transfers, such as "LOAN" or "TRANSFER".
         if op == "BUY":
-            return sorted(leaderboard, key=lambda m: len(m.purchases), reverse=True)
+            return sorted(leaderboard,
+                          key=lambda m: len([x for x in m.purchases if x.op_type in buy_types]),
+                          reverse=True)
         elif op == "SELL":
-            return sorted(leaderboard, key=lambda m: len(m.sales), reverse=True)
+            return sorted(leaderboard,
+                          key=lambda m: len([x for x in m.sales if x.op_type in sell_types]),
+                          reverse=True)
         else:
-            return sorted(leaderboard, key=lambda m: (len(m.purchases) + len(m.sales)), reverse=True)
+            return sorted(leaderboard, key=lambda m: (
+                    len([x for x in m.purchases if x.op_type in buy_types]) +
+                    len([x for x in m.sales if x.op_type in sell_types])
+            ), reverse=True)
 
 
     def get_squad_size_leaderboard(self, league_id: int) -> Optional[list]:
